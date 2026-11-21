@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "redacted-club",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 5195
+    },
+    {
+      "name": "redacted-club-dist",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5196", "--directory", "dist"],
+      "port": 5196
+    }
+  ]
+}

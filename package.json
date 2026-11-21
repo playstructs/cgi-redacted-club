@@ -1,0 +1,21 @@
+{
+  "name": "structs-redactedclub-com",
+  "version": "0.1.0",
+  "private": true,
+  "description": "structs.redactedclub.com: the structs-webapp game client for the Redacted Club guild, built from the structs-webapp submodule with the rc/ overlay.",
+  "license": "Apache-2.0",
+  "scripts": {
+    "postinstall": "npm --prefix structs-webapp/src ci --no-audit --no-fund",
+    "dev": "webpack serve --mode=development",
+    "build": "webpack --mode=production",
+    "check": "node rc/check.cjs",
+    "test": "node rc/check.cjs --strict",
+    "update:webapp": "git submodule update --remote structs-webapp && npm --prefix structs-webapp/src ci --no-audit --no-fund && npm run check"
+  },
+  "devDependencies": {
+    "secretjs": "^1.22.1",
+    "webpack": "^5.109.2",
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.0"
+  }
+}
