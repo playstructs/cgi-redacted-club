@@ -1,131 +1,38 @@
 // Choosing a Redacted Club bunny as the profile picture at sign-up.
 //
-// The bunnies are SNIP-721 tokens on Secret Network, whose holdings are
-// private: as on redactedclub.com, the player connects Keplr, creates a viewing
-// key once (a Secret Network transaction Keplr asks them to approve) and the
-// contract lists their tokens to that key. The chosen bunny's image, as
-// redactedclub.com hosts it, becomes the player's picture (pfp.js).
+// "Choose bunny", beside the generated picture, opens a gallery of every
+// bunny (0 to 1336), as redactedclub.com hosts them, in one endless scroll:
+// more are added as the player nears the end, and images load only as they
+// come into view. A player who knows their bunny's number finds it: the
+// gallery scrolls to it and outlines it. Clicking a bunny chooses it, and its
+// image, https://redactedclub.com/allBunnies/<id>.webp, becomes the player's
+// picture (pfp.js). No wallet is asked for: the picture is the player's choice.
 //
-// secretjs is loaded only when a player asks for their bunnies.
-import {bunnyUrl} from './pfp.js';
+// Its controls are webapp's own SUI components: screen buttons, the text input
+// with its warning and the close link.
+import {bunnyUrl, isBunny} from './pfp.js';
+import {bindSubmitButtonToInput} from '../../structs-webapp/src/js/util/SubmitButtonToggle.js';
 
-const CONTRACT_ADDRESS = 'secret1vavc4azfjqkcs8rj0rkcl3v45c4ddu54jqfhhq';
-const CHAIN_ID = 'secret-4';
-const LCD_URLS = [
-  'https://rest.lavenderfive.com:443/secretnetwork',
-  'https://secret.api.trivium.network:1317',
-];
-const VK_STORAGE_KEY = 'rc.bunnies.viewing-keys';
-const PAGE_SIZE = 30;
+export const FIRST_ID = 0;
+export const LAST_ID = 1336;
+const BATCH = 120;
+const ID_PATTERN = /^\d{1,4}$/;
 
-const escape = text => String(text).replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
-const short = address => `${address.slice(0, 10)}…${address.slice(-6)}`;
-
-function storedKey(address) {
-  try {
-    return JSON.parse(localStorage.getItem(VK_STORAGE_KEY) || '{}')[address] || null;
-  } catch {
-    return null;
-  }
+/** @return {number|null} the bunny with this number, if there is one */
+function parseId(text) {
+  const value = String(text).trim().replace(/^#/, '');
+  if (!ID_PATTERN.test(value)) return null;
+  const id = Number(value);
+  return id >= FIRST_ID && id <= LAST_ID ? id : null;
 }
 
-function storeKey(address, key) {
-  try {
-    const keys = JSON.parse(localStorage.getItem(VK_STORAGE_KEY) || '{}');
-    if (key) keys[address] = key; else delete keys[address];
-    localStorage.setItem(VK_STORAGE_KEY, JSON.stringify(keys));
-  } catch {
-    // Without storage the key is asked for again next time.
-  }
-}
-
-function randomKey() {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function waitForKeplr(timeout = 4000) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    if (window.keplr?.getEnigmaUtils) return true;
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  return !!window.keplr;
-}
-
-/** Keplr and a Secret Network client for its first account. */
-async function connect() {
-  if (!await waitForKeplr()) {
-    throw Object.assign(new Error('Keplr not found'), {code: 'no-keplr'});
-  }
-  try {
-    await window.keplr.enable(CHAIN_ID);
-  } catch {
-    throw Object.assign(new Error('Keplr connection declined'), {code: 'declined'});
-  }
-  const signer = window.keplr.getOfflineSignerOnlyAmino(CHAIN_ID);
-  const [{address}] = await signer.getAccounts();
-  const {SecretNetworkClient} = await import(/* webpackChunkName: "secretjs" */ 'secretjs');
-
-  for (const url of LCD_URLS) {
-    try {
-      const client = new SecretNetworkClient({
-        url,
-        chainId: CHAIN_ID,
-        wallet: signer,
-        walletAddress: address,
-        encryptionUtils: window.keplr.getEnigmaUtils(CHAIN_ID),
-      });
-      const hash = await client.query.compute.codeHashByContractAddress({contract_address: CONTRACT_ADDRESS});
-      const codeHash = typeof hash === 'string' ? hash : hash?.code_hash ?? hash?.codeHash;
-      if (codeHash) return {client, address, codeHash};
-    } catch (error) {
-      console.warn(`[rc] bunnies: ${url} failed: ${error.message}`);
-    }
-  }
-  throw new Error('Secret Network could not be reached. Please try again later.');
-}
-
-/** @return {Promise<string[]>} the token ids the address holds */
-async function ownedTokens({client, address, codeHash}, viewingKey) {
-  const tokens = [];
-  let startAfter = null;
-  for (;;) {
-    const query = {owner: address, viewer: address, viewing_key: viewingKey, limit: PAGE_SIZE};
-    if (startAfter) query.start_after = startAfter;
-    const result = await client.query.compute.queryContract({
-      contract_address: CONTRACT_ADDRESS,
-      code_hash: codeHash,
-      query: {tokens: query},
-    });
-    if (typeof result === 'string' || result?.viewing_key_error || result?.generic_err) {
-      throw Object.assign(new Error('viewing key rejected'), {code: 'viewing-key'});
-    }
-    const page = result?.token_list?.tokens ?? result?.tokens?.tokens ?? [];
-    tokens.push(...page);
-    if (page.length < PAGE_SIZE) break;
-    startAfter = page[page.length - 1];
-  }
-  return tokens.filter(id => /^\d{1,5}$/.test(id)).sort((a, b) => a - b);
-}
-
-async function createViewingKey({client, address, codeHash}) {
-  const key = randomKey();
-  const tx = await client.tx.compute.executeContract({
-    contract_address: CONTRACT_ADDRESS,
-    code_hash: codeHash,
-    sender: address,
-    msg: {set_viewing_key: {key}},
-  }, {gasLimit: 50_000});
-  if (tx.code !== 0) {
-    throw new Error(tx.rawLog || 'The viewing key transaction failed.');
-  }
-  storeKey(address, key);
-  return key;
+/** @return {number|null} the bunny the render attributes picture, if any */
+function chosenId(pfp) {
+  return isBunny(pfp?.url) ? Number(pfp.url.match(/(\d+)\.webp$/)[1]) : null;
 }
 
 /**
- * Adds "Use my bunny" to the sign-up profile screen (SetUsernameViewModel,
+ * Adds "Choose bunny" to the sign-up profile screen (SetUsernameViewModel,
  * patched to call this once its picture is shown).
  *
  * @param {object} viewModel SetUsernameViewModel
@@ -139,117 +46,132 @@ function mount(viewModel, menuPage) {
   const button = document.createElement('button');
   button.type = 'button';
   button.id = 'rc-bunny-btn';
-  button.className = 'sui-screen-btn rc-bunny-btn';
-  button.textContent = 'Use my bunny';
+  button.className = 'sui-screen-btn sui-mod-secondary';
+  button.textContent = 'Choose bunny';
   refresh.after(button);
 
   const panel = document.createElement('div');
   panel.id = 'rc-bunny-picker';
   panel.className = 'rc-bunny-picker hidden';
+  panel.innerHTML = `
+    <div class="rc-bunny-picker-header">
+      <span class="sui-text-header">Redacted Club</span>
+      <a id="rc-bunny-close" class="sui-screen-nav-close" href="javascript: void(0)" aria-label="Close">
+        <i class="sui-icon-sm icon-close"></i>
+      </a>
+    </div>
+    <div class="common-inline-text-input-group-container">
+      <div class="common-inline-text-input-controls-container">
+        <label class="sui-input-text" for="rc-bunny-id">
+          <span>Find by Number</span>
+          <input type="text" inputmode="numeric" autocomplete="off" name="rc-bunny-id" id="rc-bunny-id" placeholder="${FIRST_ID} to ${LAST_ID}">
+        </label>
+        <button id="rc-bunny-id-btn" class="sui-screen-btn sui-mod-disabled" type="button" disabled>Find</button>
+      </div>
+      <div class="common-inline-text-input-error-container">
+        <div id="rc-bunny-id-error" class="sui-input-text-warning">Enter a number from ${FIRST_ID} to ${LAST_ID}.</div>
+      </div>
+    </div>
+    <div id="rc-bunny-scroll" class="rc-bunny-scroll">
+      <div id="rc-bunny-grid" class="rc-bunny-grid"></div>
+    </div>`;
   body.append(panel);
 
-  let wallet = null;
-  let busy = false;
+  const scroller = panel.querySelector('#rc-bunny-scroll');
+  const grid = panel.querySelector('#rc-bunny-grid');
+  const idInput = panel.querySelector('#rc-bunny-id');
+  const idButton = panel.querySelector('#rc-bunny-id-btn');
+  const idError = panel.querySelector('#rc-bunny-id-error');
 
-  const show = content => {
-    panel.innerHTML = `
-      <div class="rc-bunny-picker-header">
-        <span class="sui-text-header">Redacted Club bunnies</span>
-        <button type="button" class="rc-bunny-picker-close" aria-label="Close">&times;</button>
-      </div>
-      <div class="rc-bunny-picker-body">${content}</div>`;
-    panel.classList.remove('hidden');
-    panel.querySelector('.rc-bunny-picker-close').addEventListener('click', close);
+  let next = FIRST_ID; // the first bunny not yet in the grid
+  const tile = id => grid.querySelector(`[data-bunny="${id}"]`);
+
+  /** Adds bunnies to the grid, the next batch or up to (and past) `id`. */
+  const renderMore = (id = null) => {
+    if (next > LAST_ID || (id !== null && id < next)) return;
+    const last = Math.min(LAST_ID, (id ?? next) + BATCH - 1);
+    const chosen = chosenId(viewModel.pfpViewerComponent?.pfp);
+    const html = [];
+    for (let n = next; n <= last; n++) {
+      html.push(`<button type="button" class="rc-bunny-tile${n === chosen ? ' sui-mod-active' : ''}" data-bunny="${n}" title="Redacted Club #${n}" aria-label="Redacted Club #${n}"><img src="${bunnyUrl(n)}" alt="" loading="lazy"></button>`);
+    }
+    grid.insertAdjacentHTML('beforeend', html.join(''));
+    next = last + 1;
   };
+
+  // The endless scroll: nearing the end of the grid adds the next batch, until
+  // the grid reaches past the bottom of the view.
+  const fill = () => {
+    while (next <= LAST_ID && scroller.clientHeight > 0 && scroller.scrollTop + scroller.clientHeight > scroller.scrollHeight - 600) {
+      renderMore();
+    }
+  };
+  scroller.addEventListener('scroll', fill, {passive: true});
+
+  grid.addEventListener('click', event => {
+    const target = event.target.closest('.rc-bunny-tile');
+    if (target) choose(Number(target.dataset.bunny));
+  });
+
+  /** Brings a bunny into view, outlined. */
+  const reveal = (id, {mark = true, smooth = true} = {}) => {
+    renderMore(id);
+    const target = tile(id);
+    if (!target) return;
+    if (mark) {
+      grid.querySelectorAll('.rc-mod-found').forEach(found => found.classList.remove('rc-mod-found'));
+      // Restarted, so finding the same bunny again plays the highlight again.
+      void target.offsetWidth;
+      target.classList.add('rc-mod-found');
+    }
+    target.scrollIntoView({block: 'center', behavior: smooth ? 'smooth' : 'auto'});
+  };
+
+  const open = () => {
+    panel.classList.remove('hidden');
+    const chosen = chosenId(viewModel.pfpViewerComponent?.pfp);
+    grid.querySelectorAll('.rc-bunny-tile.sui-mod-active').forEach(active => active.classList.remove('sui-mod-active'));
+    if (chosen !== null) {
+      renderMore(chosen);
+      tile(chosen)?.classList.add('sui-mod-active');
+      reveal(chosen, {mark: false, smooth: false});
+    }
+    fill();
+    menuPage.setDialogueScreenContent(`Pick your bunny. Know its number? Find it.`, true);
+  };
+
   const close = () => panel.classList.add('hidden');
-  const message = text => show(`<p class="rc-bunny-picker-message">${text}</p>`);
 
   const choose = id => {
     const component = viewModel.pfpViewerComponent;
-    const url = bunnyUrl(id);
     // The generated layers stay, under the bunny, for clients that don't show URLs.
-    component.pfp = {...(component.pfp ?? {}), url};
+    component.pfp = {...(component.pfp ?? {}), url: bunnyUrl(id)};
     component.render();
     viewModel.gameState.signupRequest.pfp_client_render_attributes = component.getPfpJson();
     close();
-    menuPage.setDialogueScreenContent(`Redacted Club #${escape(id)} it is. Now, your display name.`, true);
+    menuPage.setDialogueScreenContent(`Redacted Club #${id} it is. Now, your display name.`, true);
   };
 
-  const list = tokens => {
-    if (tokens.length === 0) {
-      message(`No Redacted Club bunnies found in <strong>${escape(short(wallet.address))}</strong>.`);
+  const find = () => {
+    const id = parseId(idInput.value);
+    if (id === null) {
+      idError.classList.add('sui-mod-show');
       return;
     }
-    show(`
-      <p class="rc-bunny-picker-message">${escape(short(wallet.address))} holds ${tokens.length}. Pick one.</p>
-      <div class="rc-bunny-grid">
-        ${tokens.map(id => `
-          <button type="button" class="rc-bunny-tile" data-token="${escape(id)}" title="Redacted Club #${escape(id)}">
-            <img src="${escape(bunnyUrl(id))}" alt="Redacted Club #${escape(id)}" loading="lazy">
-            <span>#${escape(id)}</span>
-          </button>`).join('')}
-      </div>`);
-    panel.querySelectorAll('.rc-bunny-tile').forEach(tile => {
-      tile.addEventListener('click', () => choose(tile.dataset.token));
-    });
+    idError.classList.remove('sui-mod-show');
+    reveal(id);
+    fill();
+    menuPage.setDialogueScreenContent(`There's #${id}. Click it to make it yours.`, true);
   };
 
-  const askForKey = () => {
-    show(`
-      <p class="rc-bunny-picker-message">
-        Bunnies are private on Secret Network. To see yours, Keplr will ask you to
-        approve a viewing key for the Redacted Club contract: one transaction,
-        with a small SCRT fee.
-      </p>
-      <button type="button" class="sui-screen-btn rc-bunny-key-btn">Create viewing key</button>`);
-    panel.querySelector('.rc-bunny-key-btn').addEventListener('click', () => run(async () => {
-      message('Approve the viewing key in Keplr…');
-      list(await ownedTokens(wallet, await createViewingKey(wallet)));
-    }));
-  };
-
-  const load = async () => {
-    if (!wallet) {
-      message('Connecting to Keplr…');
-      wallet = await connect();
-    }
-    const key = storedKey(wallet.address);
-    if (!key) {
-      askForKey();
-      return;
-    }
-    message('Looking for your bunnies…');
-    try {
-      list(await ownedTokens(wallet, key));
-    } catch (error) {
-      if (error.code !== 'viewing-key' && !/viewing key|unauthori/i.test(error.message ?? '')) throw error;
-      storeKey(wallet.address, null);
-      askForKey();
-    }
-  };
-
-  const run = async task => {
-    if (busy) return;
-    busy = true;
-    try {
-      await task();
-    } catch (error) {
-      console.warn('[rc] bunnies:', error);
-      if (error.code === 'no-keplr') {
-        message('Keplr wasn\'t found. Install the <a href="https://www.keplr.app/" target="_blank" rel="noopener">Keplr</a> browser extension, then reload this page.');
-      } else if (error.code === 'declined') {
-        message('Keplr didn\'t connect. Try again when you\'re ready.');
-      } else if (/rejected/i.test(error.message ?? '')) {
-        message('Request rejected in Keplr. Try again when you\'re ready.');
-      } else {
-        message(escape(error.message || 'Something went wrong.'));
-      }
-    } finally {
-      busy = false;
-    }
-  };
-
-  button.addEventListener('click', () => run(load));
+  bindSubmitButtonToInput(idInput, () => idButton);
+  idInput.addEventListener('input', () => idError.classList.remove('sui-mod-show'));
+  idInput.addEventListener('keyup', event => {
+    if (event.key === 'Enter') find();
+  });
+  idButton.addEventListener('click', find);
+  panel.querySelector('#rc-bunny-close').addEventListener('click', close);
+  button.addEventListener('click', open);
 }
 
 /** The profile is confirmed: the picture can't change any more. */

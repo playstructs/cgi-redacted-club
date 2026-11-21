@@ -56,14 +56,16 @@ lists are the exception: the guild API sends them only the generated portrait's
 attributes, so they show a player's picture only when it is in those too, as it
 is for everyone who signs up here.
 
-At sign-up, **Use my bunny** beside the generated picture connects Keplr, as
-[redactedclub.com](https://redactedclub.com) does, and lists the Redacted Club
-bunnies the wallet holds (SNIP-721 contract
-`secret1vavc4azfjqkcs8rj0rkcl3v45c4ddu54jqfhhq` on `secret-4`). Holdings are
-private, so the first time Keplr asks the player to approve a viewing key, a
-Secret Network transaction with a small SCRT fee; the key is kept in the
-browser. The chosen bunny's picture is the one redactedclub.com hosts,
-`https://redactedclub.com/allBunnies/<id>.webp` (`rc/runtime/bunnies.js`).
+At sign-up, **Choose bunny** beside the generated picture opens a gallery of
+every Redacted Club bunny, `#0` to `#1336`, edge to edge in one endless scroll
+(more are added as the player nears the end; images load as they come into
+view). A player who knows their bunny's number finds it: the gallery scrolls to
+it and outlines it. Clicking a bunny chooses it. No wallet is involved: the
+picture is the player's choice. The chosen bunny's picture is the one
+[redactedclub.com](https://redactedclub.com) hosts,
+`https://redactedclub.com/allBunnies/<id>.webp` (`rc/runtime/bunnies.js`). The
+gallery's controls are webapp's own SUI components: screen buttons, the text
+input and its warning, and the close link.
 
 That URL can't go into the sign-up request's `pfp`: the guild API requires it
 to be JSON, which the chain then refuses as a pfp. So it goes in
@@ -121,7 +123,7 @@ npm run build        # dist/
 ```
 
 `dist/` is a static site: `index.html` (webapp's game page), the bundles in
-`js/` (secretjs in its own chunk, loaded only for the bunny picker) and webapp's
+`js/` and webapp's
 `css/`, `img/`, `lottie/` and fonts, plus `guild.json` and Redacted Club's art
 in `rc/`. It uses absolute paths, so serve it from the root of
 `structs.redactedclub.com`; it needs nothing else on that domain, but

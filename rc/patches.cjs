@@ -106,7 +106,7 @@ module.exports = {
   'js/view_models/components/PfpViewerComponent.js': [
     ['  renderHTML() {\n    if (!this.pfp) {', '  renderHTML() {\n    return __rc.pfp.html(this.pfp, this.renderLayersHTML());\n  }\n\n  renderLayersHTML() {\n    if (!this.pfp) {'],
   ],
-  // Sign-up: "Use my bunny" beside the generated picture (rc/runtime/bunnies.js).
+  // Sign-up: "Choose bunny" beside the generated picture (rc/runtime/bunnies.js).
   'js/view_models/signup/SetUsernameViewModel.js': [
     ...navLabel,
     ['    this.initPfp();\n', '    this.initPfp();\n    __rc.bunnies.mount(this, MenuPage);\n'],
