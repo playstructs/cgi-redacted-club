@@ -74,6 +74,12 @@ other clients keep showing), the player joins with it, and when they first play,
 their own key sets their `pfp` on chain to the same URL
 (`MsgPlayerUpdatePfp`).
 
+Members who have already joined change their picture from their own profile:
+the edit button on their portrait opens the same gallery over the profile, and
+the bunny they click becomes their `pfp` on chain at once, signed by their own
+key (`MsgPlayerUpdatePfp`); the profile and HUD show it, and a line under their
+name says whether it went through (`rc/runtime/bunnies.js`).
+
 ## Which guild
 
 The site is Redacted Club's: its guild is `0-10`, fixed in `webpack.config.js`

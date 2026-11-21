@@ -50,6 +50,7 @@ html img.pfp-viewer-layer.rc-pfp-url {
 .rc-bunny-picker {
   position: absolute;
   inset: 0;
+  box-sizing: border-box;
   z-index: 5;
   display: flex;
   flex-direction: column;
@@ -150,4 +151,34 @@ html img.pfp-viewer-layer.rc-pfp-url {
   .rc-bunny-tile.rc-mod-found::after {
     animation: none;
   }
+}
+
+/*
+ * The player's own profile: the edit button on the portrait's corner opens the
+ * gallery over the profile (rc/runtime/bunnies.js), and a line under the player's
+ * name says how the change went.
+ */
+.rc-bunny-picker-host,
+.profile-header-image-container {
+  position: relative;
+}
+
+.rc-profile-pfp-edit {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  z-index: 1;
+  display: flex;
+  padding: 2px;
+  background: var(--page-background);
+  text-decoration: none;
+}
+
+.rc-profile-pfp-edit.sui-mod-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.rc-profile-pfp-status {
+  margin-top: var(--spacing-sm);
 }

@@ -7,7 +7,7 @@ there is no translation layer.
 | Path | What it is |
 |---|---|
 | `patches.cjs` | `[exact upstream text, replacement]` pairs per upstream file: the guild connection, recovery, the telemetry name, players' own pictures, the bunny picker, and Redacted Club in place of SN Corp in sign-up and the tutorial |
-| `runtime/` | Loaded before webapp's entry as `__rc`: `guild` (`guild.js`, the services of the guild the page plays through, Redacted Club `0-10`), `recovery` (`recovery.js`, moving a recovered player of another guild into it), `pfp` (`pfp.js`, every portrait showing the player's `pfp` URL over the generated one, and setting a sign-up bunny as `pfp` on chain) and `bunnies` (`bunnies.js`, the bunny gallery at sign-up) |
+| `runtime/` | Loaded before webapp's entry as `__rc`: `guild` (`guild.js`, the services of the guild the page plays through, Redacted Club `0-10`), `recovery` (`recovery.js`, moving a recovered player of another guild into it), `pfp` (`pfp.js`, every portrait showing the player's `pfp` URL over the generated one, and setting a sign-up bunny as `pfp` on chain) and `bunnies` (`bunnies.js`, the bunny gallery, at sign-up and on a member's own profile) |
 | `public/` | Static files served over webapp's: `guild.json` (guild `0-10`'s on-chain endpoint), `favicon.ico`, and `rc/` with `rc.css`, the sign-up badge, the guild logo and icons |
 | `page.cjs` | Renders webapp's Twig page (`templates/`) to `index.html`, adding the icons and `rc.css` |
 | `overlay.cjs`, `loader.cjs` | Apply `patches.cjs` to each source file webpack reads |

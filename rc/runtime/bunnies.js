@@ -10,8 +10,9 @@
 //
 // Its controls are webapp's own SUI components: screen buttons, the text input
 // with its warning and the close link.
-import {bunnyUrl, isBunny} from './pfp.js';
+import {bunnyUrl, isBunny, attributes} from './pfp.js';
 import {bindSubmitButtonToInput} from '../../structs-webapp/src/js/util/SubmitButtonToggle.js';
+import {PfpViewerComponent} from '../../structs-webapp/src/js/view_models/components/PfpViewerComponent.js';
 
 export const FIRST_ID = 0;
 export const LAST_ID = 1336;
@@ -50,6 +51,36 @@ function mount(viewModel, menuPage) {
   button.textContent = 'Choose bunny';
   refresh.after(button);
 
+  const picker = createPicker(body, {
+    current: () => chosenId(viewModel.pfpViewerComponent?.pfp),
+    say: text => menuPage.setDialogueScreenContent(text, true),
+    choose: id => {
+      const component = viewModel.pfpViewerComponent;
+      // The generated layers stay, under the bunny, for clients that don't show URLs.
+      component.pfp = {...(component.pfp ?? {}), url: bunnyUrl(id)};
+      component.render();
+      viewModel.gameState.signupRequest.pfp_client_render_attributes = component.getPfpJson();
+      menuPage.setDialogueScreenContent(`Redacted Club #${id} it is. Now, your display name.`, true);
+    },
+  });
+  button.addEventListener('click', picker.open);
+}
+
+/**
+ * The gallery, hidden over `host` until opened: at sign-up (mount) and on the
+ * player's own profile (mountProfile).
+ *
+ * @param {HTMLElement} host positioned element the gallery covers
+ * @param {object} options
+ * @param {function(): (number|null)} options.current the bunny chosen now, if any
+ * @param {function(string): void} options.say shows the gallery's messages
+ * @param {function(number): void} options.choose called with the chosen number
+ * @param {HTMLElement} [options.viewport] the scrolling element `host` is in,
+ *   when `host` may be taller than it: the gallery then ends where it does
+ * @return {{open: function(): void, close: function(): void}}
+ */
+function createPicker(host, {current, say, choose, viewport = null}) {
+  host.querySelector('.rc-bunny-picker')?.remove();
   const panel = document.createElement('div');
   panel.id = 'rc-bunny-picker';
   panel.className = 'rc-bunny-picker hidden';
@@ -75,7 +106,7 @@ function mount(viewModel, menuPage) {
     <div id="rc-bunny-scroll" class="rc-bunny-scroll">
       <div id="rc-bunny-grid" class="rc-bunny-grid"></div>
     </div>`;
-  body.append(panel);
+  host.append(panel);
 
   const scroller = panel.querySelector('#rc-bunny-scroll');
   const grid = panel.querySelector('#rc-bunny-grid');
@@ -90,7 +121,7 @@ function mount(viewModel, menuPage) {
   const renderMore = (id = null) => {
     if (next > LAST_ID || (id !== null && id < next)) return;
     const last = Math.min(LAST_ID, (id ?? next) + BATCH - 1);
-    const chosen = chosenId(viewModel.pfpViewerComponent?.pfp);
+    const chosen = current();
     const html = [];
     for (let n = next; n <= last; n++) {
       html.push(`<button type="button" class="rc-bunny-tile${n === chosen ? ' sui-mod-active' : ''}" data-bunny="${n}" title="Redacted Club #${n}" aria-label="Redacted Club #${n}"><img src="${bunnyUrl(n)}" alt="" loading="lazy"></button>`);
@@ -110,7 +141,7 @@ function mount(viewModel, menuPage) {
 
   grid.addEventListener('click', event => {
     const target = event.target.closest('.rc-bunny-tile');
-    if (target) choose(Number(target.dataset.bunny));
+    if (target) pick(Number(target.dataset.bunny));
   });
 
   /** Brings a bunny into view, outlined. */
@@ -127,9 +158,18 @@ function mount(viewModel, menuPage) {
     target.scrollIntoView({block: 'center', behavior: smooth ? 'smooth' : 'auto'});
   };
 
+  // Within a taller page (the profile), the gallery covers what is in view.
+  const fit = () => {
+    if (!viewport) return;
+    viewport.scrollTop = 0;
+    panel.style.bottom = 'auto';
+    panel.style.height = `${Math.max(0, viewport.getBoundingClientRect().bottom - host.getBoundingClientRect().top)}px`;
+  };
+
   const open = () => {
     panel.classList.remove('hidden');
-    const chosen = chosenId(viewModel.pfpViewerComponent?.pfp);
+    fit();
+    const chosen = current();
     grid.querySelectorAll('.rc-bunny-tile.sui-mod-active').forEach(active => active.classList.remove('sui-mod-active'));
     if (chosen !== null) {
       renderMore(chosen);
@@ -137,19 +177,14 @@ function mount(viewModel, menuPage) {
       reveal(chosen, {mark: false, smooth: false});
     }
     fill();
-    menuPage.setDialogueScreenContent(`Pick your bunny. Know its number? Find it.`, true);
+    say(`Pick your bunny. Know its number? Find it.`);
   };
 
   const close = () => panel.classList.add('hidden');
 
-  const choose = id => {
-    const component = viewModel.pfpViewerComponent;
-    // The generated layers stay, under the bunny, for clients that don't show URLs.
-    component.pfp = {...(component.pfp ?? {}), url: bunnyUrl(id)};
-    component.render();
-    viewModel.gameState.signupRequest.pfp_client_render_attributes = component.getPfpJson();
+  const pick = id => {
     close();
-    menuPage.setDialogueScreenContent(`Redacted Club #${id} it is. Now, your display name.`, true);
+    choose(id);
   };
 
   const find = () => {
@@ -161,7 +196,7 @@ function mount(viewModel, menuPage) {
     idError.classList.remove('sui-mod-show');
     reveal(id);
     fill();
-    menuPage.setDialogueScreenContent(`There's #${id}. Click it to make it yours.`, true);
+    say(`There's #${id}. Click it to make it yours.`);
   };
 
   bindSubmitButtonToInput(idInput, () => idButton);
@@ -171,7 +206,7 @@ function mount(viewModel, menuPage) {
   });
   idButton.addEventListener('click', find);
   panel.querySelector('#rc-bunny-close').addEventListener('click', close);
-  button.addEventListener('click', open);
+  return {open, close};
 }
 
 /** The profile is confirmed: the picture can't change any more. */
@@ -180,4 +215,82 @@ function lock() {
   document.getElementById('rc-bunny-picker')?.remove();
 }
 
-export const bunnies = Object.freeze({mount, lock});
+// The player's own profile ---------------------------------------------------
+
+const EDIT_ID = 'rc-profile-pfp-edit-btn';
+
+/**
+ * The edit button on the player's own portrait (AccountProfileViewModel).
+ *
+ * @param {object} viewModel AccountProfileViewModel
+ * @return {string}
+ */
+function profileButtonHTML(viewModel) {
+  return viewModel.isOwnProfile
+    ? `<a id="${EDIT_ID}" class="rc-profile-pfp-edit" href="javascript: void(0)" title="Change picture" aria-label="Change picture">
+        <i class="sui-icon icon-edit sui-text-secondary"></i>
+      </a>`
+    : '';
+}
+
+/**
+ * Opens the gallery from the player's own profile; the bunny they choose is
+ * set as their pfp on chain by their key at once (MsgPlayerUpdatePfp).
+ *
+ * @param {object} viewModel AccountProfileViewModel
+ * @param {object} menuPage webapp's MenuPage
+ */
+function mountProfile(viewModel, menuPage) {
+  const button = document.getElementById(EDIT_ID);
+  const host = document.getElementById(menuPage.pageTemplateContentId);
+  if (!button || !host) return;
+  host.classList.add('rc-bunny-picker-host');
+
+  const status = document.createElement('div');
+  status.className = 'rc-profile-pfp-status sui-text-hint hidden';
+  document.querySelector('.profile-header-info-container')?.append(status);
+  const say = text => {
+    status.textContent = text;
+    status.classList.toggle('hidden', !text);
+  };
+
+  const picker = createPicker(host, {
+    viewport: document.getElementById(menuPage.screenBodyId),
+    current: () => chosenId({url: viewModel.player?.pfp}),
+    say: () => {},
+    choose: async id => {
+      const {gameState, signingClientManager} = globalThis;
+      const player = gameState?.keyPlayers?.player?.player;
+      if (!player?.id || player.id !== viewModel.playerId || !signingClientManager) {
+        say('Your picture can only be changed while you are signed in.');
+        return;
+      }
+      const url = bunnyUrl(id);
+      button.classList.add('sui-mod-disabled');
+      say(`Setting Redacted Club #${id} as your picture…`);
+      try {
+        const tx = await signingClientManager.queueMsgPlayerUpdatePfp(player.id, url);
+        if (tx?.status !== 'succeeded') throw new Error(tx?.error ?? tx?.status ?? 'not sent');
+        player.pfp = url;
+        player.pfp_client_render_attributes = attributes(url, player.pfp_client_render_attributes);
+        // The HUD's portrait, and anything else showing the player's own.
+        const event = new CustomEvent('RENDER_PLAYER_PFP');
+        event.playerType = 'player';
+        window.dispatchEvent(event);
+        const portrait = document.querySelector('.profile-header-image');
+        if (portrait) portrait.innerHTML = new PfpViewerComponent(player.pfp_client_render_attributes).renderHTML();
+        say(`Redacted Club #${id} is your picture.`);
+      } catch (error) {
+        console.warn(`[rc] pfp of ${player.id} not set: ${error?.message ?? error}`);
+        say(`Your picture was not changed: ${error?.message ?? error}`);
+      } finally {
+        button.classList.remove('sui-mod-disabled');
+      }
+    },
+  });
+  button.addEventListener('click', () => {
+    if (!button.classList.contains('sui-mod-disabled')) picker.open();
+  });
+}
+
+export const bunnies = Object.freeze({mount, lock, profileButtonHTML, mountProfile});
