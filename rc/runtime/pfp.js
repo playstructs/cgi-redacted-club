@@ -127,7 +127,9 @@ window.addEventListener('RENDER_PLAYER_PFP', event => {
   }
   synced.add(player.id);
   signingClientManager.queueMsgPlayerUpdatePfp(player.id, url)
-    .then(() => {
+    .then(tx => {
+      // A settled transaction that failed resolves too.
+      if (tx?.status !== 'succeeded') throw new Error(tx?.error ?? tx?.status ?? 'not sent');
       player.pfp = url;
       console.info(`[rc] pfp of ${player.id} set to ${url}`);
     })
