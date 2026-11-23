@@ -123,7 +123,6 @@ module.exports = {
   'js/view_models/components/PfpViewerComponent.js': [
     ['  renderHTML() {\n    if (!this.pfp) {', '  renderHTML() {\n    return __rc.pfp.html(this.pfp, this.renderLayersHTML());\n  }\n\n  renderLayersHTML() {\n    if (!this.pfp) {'],
   ],
-  // Sign-up: "Choose bunny" beside the generated picture (rc/runtime/bunnies.js).
   // The player's own profile: the edit button on their portrait opens the
   // gallery (rc/runtime/bunnies.js), and the picture they choose is set on chain.
   'js/view_models/account/AccountProfileViewModel.js': [
@@ -153,6 +152,7 @@ module.exports = {
       "    __rc.account.bindDownload(this);\n",
     ],
   ],
+  // Sign-up: "Choose bunny" beside the generated picture (rc/runtime/bunnies.js).
   'js/view_models/signup/SetUsernameViewModel.js': [
     ...navLabel,
     ['    this.initPfp();\n', '    this.initPfp();\n    __rc.bunnies.mount(this, MenuPage);\n'],
