@@ -96,9 +96,11 @@ module.exports = {
   'js/api/InfluenceAPI.js': [
     ["this.apiUrl = '/api/influence';", guildApi('/influence')],
   ],
-  // Spectating a Sector Blitz raid (/?spectate=<planet>) reads the public raid snapshot.
+  // Read by the public Sector Blitz leaderboard (/sector-blitz), which waits here
+  // for the guild, and by spectating a raid (/?spectate=<planet>).
   'js/api/PublicSectorBlitzAPI.js': [
     ["this.apiUrl = '/api/public/sector-blitz';", guildApi('/public/sector-blitz')],
+    ['    const response = await fetch(', '    await __rc.guild.ready;\n    const response = await fetch('],
   ],
 
   // Players' own pictures (rc/runtime/pfp.js): every portrait shows a player's
