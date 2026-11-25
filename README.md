@@ -65,7 +65,8 @@ picture is the player's choice. The chosen bunny's picture is the one
 [redactedclub.com](https://redactedclub.com) hosts,
 `https://redactedclub.com/allBunnies/<id>.webp` (`rc/runtime/bunnies.js`). The
 gallery's controls are webapp's own SUI components: screen buttons, the text
-input and its warning, and the close link.
+input and the close link. **Find** is on only for a number the collection has.
+On a short screen its number field and close link share one row.
 
 That URL can't go into the sign-up request's `pfp`: the guild API requires it
 to be JSON, which the chain then refuses as a pfp. So it goes in
