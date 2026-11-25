@@ -100,6 +100,11 @@ html img.pfp-viewer-layer.rc-pfp-url {
   container: rc-bunny-picker / size;
 }
 
+/* The page under an open gallery stays put: scrolled, it would carry the gallery off. */
+#menu-page-screen-body:has(.rc-bunny-picker:not(.hidden)) {
+  overflow: hidden;
+}
+
 .rc-bunny-picker-layout {
   box-sizing: border-box;
   height: 100%;
@@ -128,6 +133,7 @@ html img.pfp-viewer-layer.rc-pfp-url {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .rc-bunny-grid {
